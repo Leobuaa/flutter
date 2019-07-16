@@ -166,6 +166,13 @@ class FlutterDriverExtension {
   /// until there are no pending frames in the app under test.
   bool _frameSync = true;
 
+  /// Whether the frame is synced.
+  ///
+  /// We consider the Flutter frame is synced when:
+  /// - There's no pending transient callbacks scheduled on the SchedulerBinding;
+  /// - There's no pending request for producing a new frame.
+  bool get _isFrameSynced => SchedulerBinding.instance.transientCallbackCount == 0 && SchedulerBinding.instance.hasScheduledFrame;
+    
   /// Processes a driver command configured by [params] and returns a result
   /// as an arbitrary JSON object.
   ///
@@ -237,12 +244,12 @@ class FlutterDriverExtension {
     // for sync-async semantics is tracked in https://github.com/flutter/flutter/issues/16801.
     await Future<void>.value(null);
     if (_frameSync)
-      await _waitUntilFrame(() => SchedulerBinding.instance.transientCallbackCount == 0);
+      await _waitUntilFrame(() => _isFrameSynced);
 
     await _waitUntilFrame(() => finder.evaluate().isNotEmpty);
 
     if (_frameSync)
-      await _waitUntilFrame(() => SchedulerBinding.instance.transientCallbackCount == 0);
+      await _waitUntilFrame(() => _isFrameSynced);
 
     return finder;
   }
@@ -250,12 +257,12 @@ class FlutterDriverExtension {
   /// Runs `finder` repeatedly until it finds zero [Element]s.
   Future<Finder> _waitForAbsentElement(Finder finder) async {
     if (_frameSync)
-      await _waitUntilFrame(() => SchedulerBinding.instance.transientCallbackCount == 0);
+      await _waitUntilFrame(() => _isFrameSynced);
 
     await _waitUntilFrame(() => finder.evaluate().isEmpty);
 
     if (_frameSync)
-      await _waitUntilFrame(() => SchedulerBinding.instance.transientCallbackCount == 0);
+      await _waitUntilFrame(() => _isFrameSynced);
 
     return finder;
   }
@@ -364,8 +371,8 @@ class FlutterDriverExtension {
   }
 
   Future<Result> _waitUntilNoTransientCallbacks(Command command) async {
-    if (SchedulerBinding.instance.transientCallbackCount != 0)
-      await _waitUntilFrame(() => SchedulerBinding.instance.transientCallbackCount == 0);
+    if (!_isFrameSynced)
+      await _waitUntilFrame(() => isFrameSynced);
     return null;
   }
 
